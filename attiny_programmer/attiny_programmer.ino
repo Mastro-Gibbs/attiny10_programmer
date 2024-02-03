@@ -1,143 +1,143 @@
 /**********************************************************************************
- * TPI programmer for:																														*
- * - ATtiny4																																			*
- * - ATtiny5																																			*
- * - ATtiny9 																																			*
- * - ATtiny10																																			*
- * 																																								*
- * Make the connections as shown below.																						*
- *																																								*
- *      Arduino             			                    ATtiny10										*
- *      ----------+         				             +-------U-------+								*
- *      (SCK)  13 |--[R]------+		+---(TPIDATA)--| 1 PB0   PB3 6 |---(RESET)			*
- *                |         	|		|  	           |               |			|					*
- *      (MOSI) 12 |--[R]--+---C---+	  	       --| 2 GND   Vcc 5 |-- 		|					*   
- *                |       | 	|		      	       |               | 			|					*
- *      (MISO) 11 |--[R]--+ 	+--------(TPICLK)--| 3 PB1   PB2 4 |--		|					*
- *                |         			    	         +---------------+			|					*
- *      (SS#)  10 |--[R]------------------------------------------------+					*
- *      ----------+         																											*
- * 																																								*
- *  -[R]- is a few kOhm resistor. 																								*
- *  Tested successfully with 4.67 kOhm resistor																		*
- *                                                																*
- *  03/02/2024	- MastroGibbs        																							*
- *                                                																*
- * thanks to https://github.com/ericheisler from which this code is inspired			*
- * 																																								*
+ * TPI programmer for:                                                            *
+ * - ATtiny4                                                                      *
+ * - ATtiny5                                                                      *
+ * - ATtiny9                                                                      *
+ * - ATtiny10                                                                     *
+ *                                                                                *
+ * Make the connections as shown below.                                           *
+ *                                                                                *
+ *      Arduino                                       ATtiny10                    *
+ *      ----------+                              +-------U-------+                *
+ *      (SCK)  13 |--[R]------+   +---(TPIDATA)--| 1 PB0   PB3 6 |---(RESET)      *
+ *                |           |   |              |               |      |         *
+ *      (MOSI) 12 |--[R]--+---C---+            --| 2 GND   Vcc 5 |--    |         *   
+ *                |       |   |                  |               |      |         *
+ *      (MISO) 11 |--[R]--+   +--------(TPICLK)--| 3 PB1   PB2 4 |--    |         *
+ *                |                              +---------------+      |         *
+ *      (SS#)  10 |--[R]------------------------------------------------+         *
+ *      ----------+                                                               *
+ *                                                                                *
+ *  -[R]- is a few kOhm resistor.                                                 *
+ *  Tested successfully with 4.67 kOhm resistor                                   *
+ *                                                                                *
+ *  03/02/2024  - MastroGibbs                                                     *
+ *                                                                                *
+ * thanks to https://github.com/ericheisler from which this code is inspired      *
+ *                                                                                *
  **********************************************************************************/
 
 #include <SPI.h>
 #include "pins_arduino.h"
 
 // instructions
-#define SLD 				        0x20
-#define SLDp 				        0x24
-#define SST 				        0x60
-#define SSTp 				        0x64
-#define SSTPRH				      0x69
-#define SSTPRL 				      0x68
-#define SKEY 				        0xE0
-#define NVM_PROGRAM_ENABLE 	0x1289AB45CDD888FFULL
-#define NVMCMD 				      0x33
-#define NVMCSR 				      0x32
-#define NVM_NOP 			      0x00
-#define NVM_CHIP_ERASE 		  0x10
-#define NVM_SECTION_ERASE 	0x14
-#define NVM_WORD_WRITE 		  0x1D
+#define SLD                 0x20
+#define SLDp                0x24
+#define SST                 0x60
+#define SSTp                0x64
+#define SSTPRH              0x69
+#define SSTPRL              0x68
+#define SKEY                0xE0
+#define NVM_PROGRAM_ENABLE  0x1289AB45CDD888FFULL
+#define NVMCMD              0x33
+#define NVMCSR              0x32
+#define NVM_NOP             0x00
+#define NVM_CHIP_ERASE      0x10
+#define NVM_SECTION_ERASE   0x14
+#define NVM_WORD_WRITE      0x1D
 
 // reprogramming status
 #define VALID_DEVICE_ID     0x01
 #define INVALID_DEVICE_ID   0x00
 #define PROG_MODE_EN        0x01
 #define PROG_MODE_NEN       0x00
-#define VALID_PROGRAM     	0x01
-#define INVALID_PROGRAM   	0x00
+#define VALID_PROGRAM       0x01
+#define INVALID_PROGRAM     0x00
 
 // max UART program buffer
 #define PROGRAM_MAX_LEN     1024
 
 // fuse Actions
-#define FUSE_CLR						0x00
-#define FUSE_SET						0x01
+#define FUSE_CLR            0x00
+#define FUSE_SET            0x01
 
 // memmap ranges
 #define MEMMAP_REGS_BEGIN   0x0000
 #define MEMMAP_REGS_END     0x003F
 #define MEMMAP_SRAM_BEGIN   0x0040
 #define MEMMAP_SRAM_END     0x005F
-#define MEMMAP_LOCK_BITS   	0x3F00
-#define MEMMAP_FUSE		      0x3F40
+#define MEMMAP_LOCK_BITS    0x3F00
+#define MEMMAP_FUSE         0x3F40
 #define MEMMAP_CALIBRATION  0x3F80
-#define MEMMAP_DEVICE_ID		0x3FC0
+#define MEMMAP_DEVICE_ID    0x3FC0
 #define MEMMAP_FLASH_BEGIN  0x4000
 #define MEMMAP_FLASH_END    0x4400
 
 // attiny IDs
-#define ATTINY4_DEVID 			0x001E8F0A
-#define ATTINY5_DEVID 			0x001E8F09
-#define ATTINY9_DEVID 			0x001E9008
-#define ATTINY10_DEVID			0x001E9003
+#define ATTINY4_DEVID       0x001E8F0A
+#define ATTINY5_DEVID       0x001E8F09
+#define ATTINY9_DEVID       0x001E9008
+#define ATTINY10_DEVID      0x001E9003
 
 // I/O Space registers addresses
-#define IO_PINB							0x0000
-#define IO_DDRB							0x0001
-#define IO_PORTB						0x0002
-#define IO_PUEB							0x0003
-#define IO_PORTCR						0x000C
-#define IO_PCMSK						0x0010
-#define IO_PCIFR						0x0011
-#define IO_PCICR						0x0012
-#define IO_EIMSK						0x0013
-#define IO_EIFR							0x0014
-#define IO_EICRA						0x0015
-#define IO_DIDR0						0x0017
-#define IO_ADCL							0x0019
-#define IO_ADMUX						0x001B
-#define IO_ADCSRB						0x001C
-#define IO_ADCSRA						0x001D
-#define IO_ACSR							0x001F
-#define IO_ICR0L						0x0022
-#define IO_ICR0H						0x0023
-#define IO_OCR0BL						0x0024
-#define IO_OCR0BH						0x0025
-#define IO_OCR0AL						0x0026
-#define IO_OCR0AH						0x0027
-#define IO_TCNT0L						0x0028
-#define IO_TCNT0H 					0x0029
-#define IO_TIFR0 						0x002A
-#define IO_TIMSK0						0x002B
-#define IO_TCCR0C						0x002C
-#define IO_TCCR0B						0x002D
-#define IO_TCCR0A						0x002E
-#define IO_GTCCR						0x002F
-#define IO_WDTCSR						0x0031
-#define IO_NVMCSR					  0x0032
-#define IO_NVMCMD						0x0033
-#define IO_VLMCSR					  0x0034
-#define IO_PRR					    0x0035
-#define IO_CLKPSR						0x0036
-#define IO_CLKMSR						0x0037
-#define IO_OSCCAL 					0x0039
-#define IO_SMCR 						0x003A
-#define IO_RSTFLR						0x003B
-#define IO_CCP							0x003C
-#define IO_SPL							0x003D
-#define IO_SPH							0x003E
-#define IO_SREG							0x003F
+#define IO_PINB             0x0000
+#define IO_DDRB             0x0001
+#define IO_PORTB            0x0002
+#define IO_PUEB             0x0003
+#define IO_PORTCR           0x000C
+#define IO_PCMSK            0x0010
+#define IO_PCIFR            0x0011
+#define IO_PCICR            0x0012
+#define IO_EIMSK            0x0013
+#define IO_EIFR             0x0014
+#define IO_EICRA            0x0015
+#define IO_DIDR0            0x0017
+#define IO_ADCL             0x0019
+#define IO_ADMUX            0x001B
+#define IO_ADCSRB           0x001C
+#define IO_ADCSRA           0x001D
+#define IO_ACSR             0x001F
+#define IO_ICR0L            0x0022
+#define IO_ICR0H            0x0023
+#define IO_OCR0BL           0x0024
+#define IO_OCR0BH           0x0025
+#define IO_OCR0AL           0x0026
+#define IO_OCR0AH           0x0027
+#define IO_TCNT0L           0x0028
+#define IO_TCNT0H           0x0029
+#define IO_TIFR0            0x002A
+#define IO_TIMSK0           0x002B
+#define IO_TCCR0C           0x002C
+#define IO_TCCR0B           0x002D
+#define IO_TCCR0A           0x002E
+#define IO_GTCCR            0x002F
+#define IO_WDTCSR           0x0031
+#define IO_NVMCSR           0x0032
+#define IO_NVMCMD           0x0033
+#define IO_VLMCSR           0x0034
+#define IO_PRR              0x0035
+#define IO_CLKPSR           0x0036
+#define IO_CLKMSR           0x0037
+#define IO_OSCCAL           0x0039
+#define IO_SMCR             0x003A
+#define IO_RSTFLR           0x003B
+#define IO_CCP              0x003C
+#define IO_SPL              0x003D
+#define IO_SPH              0x003E
+#define IO_SREG             0x003F
 
 
-uint8_t  cmd;												// used to detect main menu action
-uint8_t  fuse_cmd;									// used to detect fuse setting action
+uint8_t  cmd;                       // used to detect main menu action
+uint8_t  fuse_cmd;                  // used to detect fuse setting action
 
-uint32_t device_id;									// device id
-uint8_t  device_id_valid;						// device id control variable
+uint32_t device_id;                 // device id
+uint8_t  device_id_valid;           // device id control variable
 
-uint8_t  program_valid;							// UART program control
-uint8_t  program[PROGRAM_MAX_LEN];	// UART program buffer 
-uint32_t program_size;							// UART program size
+uint8_t  program_valid;             // UART program control
+uint8_t  program[PROGRAM_MAX_LEN];  // UART program buffer 
+uint32_t program_size;              // UART program size
 
-uint8_t  prog_mode_enabled;					// control device status [under programming or not]
+uint8_t  prog_mode_enabled;         // control device status [under programming or not]
 
 
 void setup()
@@ -159,7 +159,7 @@ void setup()
   program_size  = 0;
 
   device_id_valid   = INVALID_DEVICE_ID;
-  program_valid		  = INVALID_PROGRAM;
+  program_valid      = INVALID_PROGRAM;
   prog_mode_enabled = PROG_MODE_NEN;
 
   Serial.println(F("Programmer ready!"));
@@ -321,14 +321,14 @@ void enter_prog_mode(void)
   Serial.println(F("Check wirings if you are stuck into this function"));
 
   // enter TPI programming mode
-  digitalWrite(SS, LOW); 	// assert RESET on tiny
-  delay(1);			   				// t_RST min = 400 ns @ Vcc = 5 V
+  digitalWrite(SS, LOW);  // assert RESET on tiny
+  delay(1);               // t_RST min = 400 ns @ Vcc = 5 V
 
-  SPI.transfer(0xff); 		// activate TPI by emitting
-  SPI.transfer(0xff); 		// 16 or more pulses on TPICLK
-  SPI.transfer(0xff); 		// while holding TPIDATA to "1"
+  SPI.transfer(0xff);     // activate TPI by emitting
+  SPI.transfer(0xff);     // 16 or more pulses on TPICLK
+  SPI.transfer(0xff);     // while holding TPIDATA to "1"
 
-  write_CSS(0x02, 0x04); 	// TPIPCR, guard time = 8bits (default=128)
+  write_CSS(0x02, 0x04);  // TPIPCR, guard time = 8bits (default=128)
 
   send_skey(NVM_PROGRAM_ENABLE); // enable NVM interface
 
@@ -355,21 +355,21 @@ void leave_prog_mode(void)
   Serial.println(F("Leaving programming mode"));
   Serial.println(F("Resetting device"));
 
-  digitalWrite(SS, LOW); 	// acquire RESET
-  delay(1);			   				// t_RST min = 400 ns @ Vcc = 5 V
+  digitalWrite(SS, LOW);   // acquire RESET
+  delay(1);                // t_RST min = 400 ns @ Vcc = 5 V
 
   write_CSS(0x00, 0x00);
   SPI.transfer(0xff);
   SPI.transfer(0xff);
 
   digitalWrite(SS, HIGH); // release RESET
-  delay(1); 							// t_RST min = 400 ns @ Vcc = 5 V
+  delay(1);               // t_RST min = 400 ns @ Vcc = 5 V
 
   memset(program, 0x00, PROGRAM_MAX_LEN);
   program_size  = 0;
 
   device_id_valid   = INVALID_DEVICE_ID;
-  program_valid		  = INVALID_PROGRAM;
+  program_valid     = INVALID_PROGRAM;
   prog_mode_enabled = PROG_MODE_NEN;
 
   Serial.println(F("Device is free"));
@@ -868,7 +868,7 @@ void memory_dump(void)
     b = tpi_receive_byte();
 
     Serial.print(' '); // delimiter
-    print_hex2(b);	  // print data in hex 2 digits
+    print_hex2(b);     // print data in hex 2 digits
 
     address++;
   }
@@ -906,7 +906,7 @@ void memory_dump(void)
     b = tpi_receive_byte();
 
     Serial.print(' '); // delimiter
-    print_hex2(b);	  // print data in hex 2 digits
+    print_hex2(b);     // print data in hex 2 digits
 
     address++;
   }
@@ -924,11 +924,11 @@ void receive_program(void)
   uint8_t  record_type = 0x00;
   uint8_t  byte_count  = 0x00;
   uint8_t  exit        = 0x00;
-  uint8_t  record_crc	 = 0x00;
+  uint8_t  record_crc  = 0x00;
   uint8_t  current_crc = 0x0000;
   uint8_t  temp_byte   = 0x00;
 
-  unsigned long btime				 = 0;
+  unsigned long btime        = 0;
   unsigned long recv_timeout = 5000;
 
   memset(program, 0x00, PROGRAM_MAX_LEN);
@@ -1118,7 +1118,7 @@ void show_program(void)
   Serial.print(':');
 
   for (i = 0; i < program_size; i++)
-  {	
+  {  
     if (i != 0 && i % 0x10 == 0)
     {
       Serial.println();
@@ -1127,8 +1127,8 @@ void show_program(void)
     }
 
     Serial.print(' ');
-    print_hex2(program[i]);		
-  }	
+    print_hex2(program[i]);    
+  }  
 
   Serial.println();
 
@@ -1242,8 +1242,8 @@ void erase_chip(void)
 
 void verify_program(void)
 {
-  uint8_t 			 b;
-  boolean 			 correct = true;
+  uint8_t        b;
+  boolean        correct = true;
   unsigned short ind     = 0;
 
   if (prog_mode_enabled == PROG_MODE_NEN)
@@ -1461,11 +1461,11 @@ uint8_t tpi_receive_byte(void)
   // now shift the bits into the right positions
   // b1 should hold only idle and start bits = 0b01111111
   while (0x7f != b1)
-  {			  		// data not aligned
+  {            // data not aligned
     b2 <<= 1; // shift left data bits
 
     if (0x80 & b1)
-    {			 			// carry from 1st byte
+    {             // carry from 1st byte
       b2 |= 1; // set bit
     }
 
