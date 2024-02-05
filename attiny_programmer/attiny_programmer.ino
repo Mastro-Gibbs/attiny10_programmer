@@ -224,12 +224,12 @@ void loop()
 
   case 'S':
   case 's':
-    set_fuse_cfg(true);
+    set_fuse_cfg(FUSE_SET);
     break;
 
   case 'C':
   case 'c':
-    set_fuse_cfg(false);
+    set_fuse_cfg(FUSE_CLR);
     break;
   
   default:
